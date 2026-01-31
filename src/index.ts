@@ -670,23 +670,75 @@ export default {
   fetch(request: Request, env: Env, ctx: ExecutionContext) {
     const url = new URL(request.url);
 
+    // Health check — no secrets exposed
     if (url.pathname === "/") {
       return new Response(
         JSON.stringify({
           name: "zotero-assistant",
-          version: "0.2.0",
-          mcp_endpoint: "/mcp",
-          description:
-            "Remote Zotero MCP server — read, write, and manage your Zotero library.",
+          version: "0.3.0",
+          status: "ok",
         }),
-        {
-          headers: { "content-type": "application/json" },
-        }
+        { headers: { "content-type": "application/json" } }
       );
     }
 
+    // -----------------------------------------------------------------------
+    // Authentication — supports two methods:
+    //   1. URL token:    /mcp/t/{token}  (for Claude Desktop UI connector)
+    //   2. Bearer header: Authorization: Bearer {token}  (for API/CLI)
+    // -----------------------------------------------------------------------
+
+    // Method 1: Token in URL path — /mcp/t/{token} or /mcp/t/{token}/...
+    const tokenMatch = url.pathname.match(/^\/mcp\/t\/([^/]+)(\/.*)?$/);
+    if (tokenMatch) {
+      const urlToken = tokenMatch[1];
+      if (!env.BEARER_TOKEN || urlToken !== env.BEARER_TOKEN) {
+        return new Response(
+          JSON.stringify({ error: "Unauthorized" }),
+          { status: 401, headers: { "content-type": "application/json" } }
+        );
+      }
+      // Rewrite URL: strip /t/{token} so the MCP handler sees /mcp
+      const rewrittenPath = "/mcp" + (tokenMatch[2] || "");
+      const rewrittenUrl = new URL(rewrittenPath, url.origin);
+      rewrittenUrl.search = url.search;
+      const rewrittenRequest = new Request(rewrittenUrl.toString(), request);
+      return (
+        ZoteroMCP.serve("/mcp") as {
+          fetch: (
+            req: Request,
+            env: Env,
+            ctx: ExecutionContext
+          ) => Response | Promise<Response>;
+        }
+      ).fetch(rewrittenRequest, env, ctx);
+    }
+
+    // Method 2: Bearer header on /mcp
+    if (url.pathname.startsWith("/mcp")) {
+      const auth = request.headers.get("Authorization");
+      if (!env.BEARER_TOKEN || !auth || auth !== `Bearer ${env.BEARER_TOKEN}`) {
+        return new Response(
+          JSON.stringify({ error: "Unauthorized" }),
+          {
+            status: 401,
+            headers: {
+              "content-type": "application/json",
+              "WWW-Authenticate": "Bearer",
+            },
+          }
+        );
+      }
+    }
+
     return (
-      ZoteroMCP.serve("/mcp") as { fetch: (req: Request, env: Env, ctx: ExecutionContext) => Response | Promise<Response> }
+      ZoteroMCP.serve("/mcp") as {
+        fetch: (
+          req: Request,
+          env: Env,
+          ctx: ExecutionContext
+        ) => Response | Promise<Response>;
+      }
     ).fetch(request, env, ctx);
   },
 };

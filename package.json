@@ -1,11 +1,12 @@
 {
   "name": "zotero-assistant-mcp-remote",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Remote Zotero MCP server on Cloudflare Workers",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "setup": "tsx setup/server.ts",
     "cf-typegen": "wrangler types --env-interface CloudflareBindings"
   },
   "dependencies": {
@@ -17,6 +18,8 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250109.0",
     "@types/node": "^22.0.0",
+    "open": "^10.0.0",
+    "tsx": "^4.0.0",
     "typescript": "^5.7.0",
     "wrangler": "^4.0.0"
   }

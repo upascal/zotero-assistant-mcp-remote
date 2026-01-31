@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zotero MCP Server — Setup</title>
+  <style>
+    /* Reset & Base */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        "Helvetica Neue", Arial, sans-serif;
+      background: #f5f5f7;
+      color: #1d1d1f;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .container {
+      max-width: 540px;
+      margin: 0 auto;
+      padding: 32px 24px;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+
+    .header h1 {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: #86868b;
+      margin-top: 1px;
+    }
+
+    /* Badge */
+    .badge {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 100px;
+      margin-bottom: 16px;
+    }
+
+    .badge-info {
+      background: #e8f0fe;
+      color: #1a73e8;
+    }
+
+    .badge-success {
+      background: #e8f8e8;
+      color: #1b7a1b;
+    }
+
+    .badge-warn {
+      background: #fff3cd;
+      color: #856404;
+    }
+
+    /* Steps */
+    .step {
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    }
+
+    .step-header {
+      display: flex;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    .step-number {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #CC2936;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 1px;
+    }
+
+    .step h2 {
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .step-help {
+      font-size: 13px;
+      color: #6e6e73;
+      margin-top: 3px;
+    }
+
+    /* Links */
+    .link {
+      color: #CC2936;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .link:hover {
+      text-decoration: underline;
+    }
+
+    /* Inputs */
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      padding: 10px 14px;
+      font-size: 14px;
+      border: 1.5px solid #d2d2d7;
+      border-radius: 8px;
+      background: #fafafa;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+    }
+
+    input:focus {
+      border-color: #CC2936;
+      box-shadow: 0 0 0 3px rgba(204, 41, 54, 0.12);
+      background: #fff;
+    }
+
+    input.error {
+      border-color: #ff3b30;
+    }
+
+    /* Field Errors */
+    .field-error {
+      font-size: 12px;
+      color: #ff3b30;
+      margin-top: 6px;
+      min-height: 0;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+    }
+
+    .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: #CC2936;
+      color: #fff;
+      width: 100%;
+      padding: 12px 20px;
+      font-size: 15px;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: #a8212c;
+    }
+
+    .btn-secondary {
+      background: #e8e8ed;
+      color: #1d1d1f;
+      margin-top: 12px;
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: #d2d2d7;
+    }
+
+    /* Spinner */
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* Result messages */
+    .result-msg {
+      margin-top: 10px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .result-msg.success {
+      background: #e8f8e8;
+      color: #1b7a1b;
+    }
+
+    .result-msg.failure {
+      background: #fde8e8;
+      color: #cc1a1a;
+    }
+
+    /* Actions */
+    .actions {
+      margin-top: 8px;
+    }
+
+    .save-hint {
+      font-size: 12px;
+      color: #86868b;
+      text-align: center;
+      margin-top: 8px;
+    }
+
+    /* Success View */
+    .success-card {
+      text-align: center;
+      background: #fff;
+      border-radius: 16px;
+      padding: 40px 32px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .success-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: #e8f8e8;
+      color: #1b7a1b;
+      font-size: 28px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+    }
+
+    .success-card h2 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .success-card > p {
+      font-size: 14px;
+      color: #6e6e73;
+      margin-bottom: 20px;
+    }
+
+    /* Code block */
+    .code-block {
+      position: relative;
+      text-align: left;
+      background: #1d1d1f;
+      color: #e8e8ed;
+      border-radius: 10px;
+      padding: 16px 18px;
+      font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      overflow-x: auto;
+      white-space: pre;
+      margin-bottom: 20px;
+    }
+
+    .code-block .copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: rgba(255, 255, 255, 0.12);
+      color: #e8e8ed;
+      border: none;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .code-block .copy-btn:hover {
+      background: rgba(255, 255, 255, 0.22);
+    }
+
+    .code-block .copy-btn.copied {
+      background: #1b7a1b;
+    }
+
+    /* Next steps */
+    .next-steps {
+      text-align: left;
+      margin-bottom: 24px;
+    }
+
+    .next-steps h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .next-steps ol {
+      padding-left: 20px;
+      font-size: 13px;
+      color: #6e6e73;
+    }
+
+    .next-steps li {
+      margin-bottom: 4px;
+    }
+
+    .next-steps strong {
+      color: #1d1d1f;
+    }
+
+    /* Config path */
+    .config-path {
+      font-size: 13px;
+      color: #6e6e73;
+      background: #f5f5f7;
+      border-radius: 8px;
+      padding: 12px 16px;
+      text-align: left;
+      margin-bottom: 20px;
+      word-break: break-all;
+    }
+
+    /* Button group */
+    .button-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .button-group .btn-secondary {
+      margin-top: 0;
+    }
+
+    /* Cloudflare status */
+    .cf-status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+      font-size: 13px;
+    }
+
+    .cf-status .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .cf-status .dot.green {
+      background: #1b7a1b;
+    }
+
+    .cf-status .dot.red {
+      background: #ff3b30;
+    }
+
+    .cf-status .dot.gray {
+      background: #86868b;
+    }
+
+    /* Fade out animation */
+    .fade-out {
+      animation: fadeOut 0.5s ease-out forwards;
+    }
+
+    @keyframes fadeOut {
+      to {
+        opacity: 0;
+        transform: translateY(-4px);
+      }
+    }
+
+    /* Deploy log */
+    .deploy-log {
+      text-align: left;
+      background: #1d1d1f;
+      color: #86868b;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+      font-size: 11px;
+      line-height: 1.5;
+      max-height: 120px;
+      overflow-y: auto;
+      margin-top: 12px;
+      display: none;
+    }
+
+    .deploy-log .log-success {
+      color: #4ade80;
+    }
+
+    .deploy-log .log-error {
+      color: #f87171;
+    }
+
+    /* Tabs */
+    .tab-btn {
+      flex: 1;
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      border: none;
+      background: #f5f5f7;
+      color: #6e6e73;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .tab-btn:not(:last-child) {
+      border-right: 1.5px solid #d2d2d7;
+    }
+
+    .tab-btn.active {
+      background: #CC2936;
+      color: #fff;
+    }
+
+    .tab-btn:hover:not(.active) {
+      background: #e8e8ed;
+    }
+
+    /* Copyable field */
+    .copyable-field {
+      position: relative;
+      background: #1d1d1f;
+      border-radius: 8px;
+      padding: 12px 16px;
+      padding-right: 90px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .copyable-field:hover {
+      background: #2d2d2f;
+    }
+
+    .copyable-field code {
+      font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+      font-size: 12px;
+      color: #e8e8ed;
+      word-break: break-all;
+      line-height: 1.5;
+    }
+
+    .copyable-field .copy-hint {
+      position: absolute;
+      top: 50%;
+      right: 12px;
+      transform: translateY(-50%);
+      font-size: 11px;
+      font-weight: 600;
+      color: #86868b;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+
+    .copyable-field .copy-hint.copied {
+      color: #4ade80;
+      background: rgba(74, 222, 128, 0.12);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+          <rect width="32" height="32" rx="8" fill="#CC2936" />
+          <text x="16" y="23" text-anchor="middle" font-size="20" font-weight="bold" fill="white">Z</text>
+        </svg>
+      </div>
+      <div>
+        <h1>Zotero MCP Server</h1>
+        <p class="subtitle">Remote Server Setup</p>
+      </div>
+    </header>
+
+    <!-- ================================================================= -->
+    <!-- Form View                                                          -->
+    <!-- ================================================================= -->
+    <div id="form-view">
+
+      <!-- Step 1: Library ID -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-number">1</span>
+          <div>
+            <h2>Zotero Library ID</h2>
+            <p class="step-help">
+              Find your Library ID at
+              <a href="https://www.zotero.org/settings/keys" target="_blank" class="link">zotero.org/settings/keys</a>
+              — it's labeled "Your userID for use in API calls."
+            </p>
+          </div>
+        </div>
+        <input type="text" id="library-id" placeholder="e.g. 1234567" autocomplete="off" spellcheck="false">
+        <div id="library-id-error" class="field-error"></div>
+      </div>
+
+      <!-- Step 2: API Key -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-number">2</span>
+          <div>
+            <h2>Zotero API Key</h2>
+            <p class="step-help">
+              On the same page, click "Create new private key."
+              Enable <strong>Allow library access</strong> and <strong>Allow write access</strong>.
+            </p>
+          </div>
+        </div>
+        <input type="password" id="api-key" placeholder="Paste your API key" autocomplete="off" spellcheck="false">
+        <div id="api-key-error" class="field-error"></div>
+
+        <button id="btn-test" class="btn btn-secondary" disabled>
+          <span id="test-label">Test Connection</span>
+          <span id="test-spinner" class="spinner" style="display: none;"></span>
+        </button>
+        <div id="test-result" class="result-msg" style="display: none;"></div>
+      </div>
+
+      <!-- Step 3: Cloudflare -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-number">3</span>
+          <div>
+            <h2>Cloudflare Account</h2>
+            <p class="step-help">
+              Your MCP server will be deployed to Cloudflare Workers (free tier — no credit card required).
+              Don't have an account? Click "Login to Cloudflare" below and you can
+              <a href="https://dash.cloudflare.com/sign-up" target="_blank" class="link">create one for free</a>.
+            </p>
+          </div>
+        </div>
+        <div id="cf-status" class="cf-status">
+          <span class="dot gray"></span>
+          <span>Checking Cloudflare login...</span>
+        </div>
+        <button id="btn-cf-login" class="btn btn-secondary" style="display: none;">
+          <span id="cf-login-label">Login to Cloudflare</span>
+          <span id="cf-login-spinner" class="spinner" style="display: none;"></span>
+        </button>
+      </div>
+
+      <!-- Deploy -->
+      <div class="actions">
+        <button id="btn-deploy" class="btn btn-primary" disabled>
+          <span id="deploy-label">Deploy MCP Server</span>
+          <span id="deploy-spinner" class="spinner" style="display: none;"></span>
+        </button>
+        <p class="save-hint">Deploys to your Cloudflare account and generates a secure access token.</p>
+        <div id="deploy-error" class="field-error"></div>
+        <div id="deploy-log" class="deploy-log"></div>
+      </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- Success View                                                       -->
+    <!-- ================================================================= -->
+    <div id="success-view" style="display: none;">
+      <div class="success-card">
+        <div class="success-icon">&#10003;</div>
+        <h2>Your MCP Server is Live!</h2>
+        <p>Deployed and secured with a bearer token.</p>
+
+        <!-- Tab switcher -->
+        <div style="display: flex; gap: 0; margin-bottom: 20px; border-radius: 8px; overflow: hidden; border: 1.5px solid #d2d2d7;">
+          <button id="tab-ui" class="tab-btn active" onclick="switchTab('ui')">Claude Desktop UI</button>
+          <button id="tab-json" class="tab-btn" onclick="switchTab('json')">JSON Config</button>
+          <button id="tab-code" class="tab-btn" onclick="switchTab('code')">Claude Code</button>
+        </div>
+
+        <!-- Method 1: Claude Desktop UI (recommended) -->
+        <div id="panel-ui" class="tab-panel">
+          <div class="next-steps" style="margin-bottom: 16px;">
+            <h3>Add via Claude Desktop UI</h3>
+            <p style="font-size: 13px; color: #6e6e73; margin-bottom: 12px;">
+              The easiest way — just paste one URL. No advanced settings needed.
+            </p>
+            <ol>
+              <li>Open <strong>Claude Desktop &rarr; Settings &rarr; Connectors</strong></li>
+              <li>Click <strong>"Add custom connector"</strong></li>
+              <li>Set the name to <strong>Zotero Assistant</strong></li>
+              <li>Paste this URL (includes your secret token):</li>
+            </ol>
+          </div>
+
+          <div class="copyable-field" onclick="copyField('url-field')">
+            <code id="url-field"></code>
+            <span class="copy-hint" id="url-copy-hint">Click to copy</span>
+          </div>
+
+          <div class="next-steps" style="margin-top: 16px;">
+            <ol start="5">
+              <li>Click <strong>"Add"</strong></li>
+              <li>Ask Claude to search your Zotero library!</li>
+            </ol>
+            <p style="font-size: 12px; color: #86868b; margin-top: 10px;">
+              Your secret token is embedded in the URL. Keep this URL private — anyone with it can access your Zotero library.
+            </p>
+          </div>
+        </div>
+
+        <!-- Method 2: JSON Config -->
+        <div id="panel-json" class="tab-panel" style="display: none;">
+          <div class="next-steps" style="margin-bottom: 12px;">
+            <h3>Add via JSON Config</h3>
+            <p style="font-size: 13px; color: #6e6e73; margin-bottom: 10px;">
+              For Claude Desktop: <strong>Settings &rarr; Developer &rarr; Edit Config</strong>.<br>
+              Merge this into your <code>claude_desktop_config.json</code>:
+            </p>
+          </div>
+
+          <div class="code-block" id="config-block">
+            <button class="copy-btn" id="btn-copy-json" onclick="copyConfig()">Copy</button>
+            <code id="config-code"></code>
+          </div>
+        </div>
+
+        <!-- Method 3: Claude Code CLI -->
+        <div id="panel-code" class="tab-panel" style="display: none;">
+          <div class="next-steps" style="margin-bottom: 12px;">
+            <h3>Add via Claude Code CLI</h3>
+            <p style="font-size: 13px; color: #6e6e73; margin-bottom: 10px;">
+              Run this command in your terminal:
+            </p>
+          </div>
+
+          <div class="code-block" id="cli-block">
+            <button class="copy-btn" id="btn-copy-cli" onclick="copyCli()">Copy</button>
+            <code id="cli-code"></code>
+          </div>
+        </div>
+
+        <div class="button-group" style="margin-top: 24px;">
+          <button class="btn btn-secondary" onclick="startOver()">Run Setup Again</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =====================================================================
+    // DOM refs
+    // =====================================================================
+    const libraryIdInput = document.getElementById('library-id');
+    const apiKeyInput = document.getElementById('api-key');
+    const libraryIdError = document.getElementById('library-id-error');
+    const apiKeyError = document.getElementById('api-key-error');
+    const btnTest = document.getElementById('btn-test');
+    const testLabel = document.getElementById('test-label');
+    const testSpinner = document.getElementById('test-spinner');
+    const testResult = document.getElementById('test-result');
+    const cfStatus = document.getElementById('cf-status');
+    const btnCfLogin = document.getElementById('btn-cf-login');
+    const cfLoginLabel = document.getElementById('cf-login-label');
+    const cfLoginSpinner = document.getElementById('cf-login-spinner');
+    const btnDeploy = document.getElementById('btn-deploy');
+    const deployLabel = document.getElementById('deploy-label');
+    const deploySpinner = document.getElementById('deploy-spinner');
+    const deployError = document.getElementById('deploy-error');
+    const deployLog = document.getElementById('deploy-log');
+    const formView = document.getElementById('form-view');
+    const successView = document.getElementById('success-view');
+    const configCode = document.getElementById('config-code');
+    const cliCode = document.getElementById('cli-code');
+    const urlField = document.getElementById('url-field');
+
+    let cfLoggedIn = false;
+
+    // =====================================================================
+    // Init
+    // =====================================================================
+    async function init() {
+      checkCfStatus();
+    }
+
+    init();
+
+    // =====================================================================
+    // Cloudflare status
+    // =====================================================================
+    async function checkCfStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+
+        const dot = cfStatus.querySelector('.dot');
+        const text = cfStatus.querySelector('span:last-child');
+
+        if (data.loggedIn) {
+          cfLoggedIn = true;
+          dot.className = 'dot green';
+          text.textContent = `Logged in as ${data.account || 'Cloudflare user'}`;
+          btnCfLogin.style.display = 'none';
+        } else {
+          cfLoggedIn = false;
+          dot.className = 'dot red';
+          text.textContent = 'Not logged in — click below to sign in or create an account';
+          btnCfLogin.style.display = 'inline-flex';
+        }
+      } catch (err) {
+        const dot = cfStatus.querySelector('.dot');
+        const text = cfStatus.querySelector('span:last-child');
+        dot.className = 'dot red';
+        text.textContent = 'Could not check Cloudflare status';
+        btnCfLogin.style.display = 'inline-flex';
+      }
+
+      updateDeployButton();
+    }
+
+    // =====================================================================
+    // Validation
+    // =====================================================================
+    function validateLibraryId() {
+      const val = libraryIdInput.value.trim();
+      if (!val) { libraryIdError.textContent = ''; return false; }
+      if (!/^\d+$/.test(val)) {
+        libraryIdError.textContent = 'Library ID should be a number.';
+        libraryIdInput.classList.add('error');
+        return false;
+      }
+      libraryIdError.textContent = '';
+      libraryIdInput.classList.remove('error');
+      return true;
+    }
+
+    function validateApiKey() {
+      const val = apiKeyInput.value.trim();
+      if (!val) { apiKeyError.textContent = ''; return false; }
+      apiKeyError.textContent = '';
+      apiKeyInput.classList.remove('error');
+      return true;
+    }
+
+    function isFormValid() {
+      const libOk = libraryIdInput.value.trim() && /^\d+$/.test(libraryIdInput.value.trim());
+      const keyOk = apiKeyInput.value.trim().length > 0;
+      return libOk && keyOk;
+    }
+
+    function updateDeployButton() {
+      btnDeploy.disabled = !(isFormValid() && cfLoggedIn);
+      btnTest.disabled = !isFormValid();
+    }
+
+    libraryIdInput.addEventListener('input', () => {
+      validateLibraryId();
+      updateDeployButton();
+      clearTestResult();
+    });
+
+    apiKeyInput.addEventListener('input', () => {
+      validateApiKey();
+      updateDeployButton();
+      clearTestResult();
+    });
+
+    function clearTestResult() {
+      testResult.style.display = 'none';
+      testResult.textContent = '';
+      testResult.className = 'result-msg';
+    }
+
+    // =====================================================================
+    // Test Connection
+    // =====================================================================
+    btnTest.addEventListener('click', async () => {
+      if (!isFormValid()) return;
+
+      testLabel.textContent = 'Testing...';
+      testSpinner.style.display = 'inline-block';
+      btnTest.disabled = true;
+      clearTestResult();
+
+      try {
+        const res = await fetch('/api/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            apiKey: apiKeyInput.value.trim(),
+            libraryId: libraryIdInput.value.trim(),
+          }),
+        });
+        const data = await res.json();
+
+        testResult.style.display = 'block';
+        if (data.success) {
+          testResult.className = 'result-msg success';
+          let msg = '✓ Connected successfully! Your credentials are valid.';
+          if (data.collections && data.collections.length > 0) {
+            const total = data.collections.length;
+            const shown = data.collections.slice(0, 3);
+            msg += '\nCollections: ' + shown.join(', ');
+            if (total > 3) {
+              msg += ` … and ${total - 3} more`;
+            }
+          }
+          testResult.textContent = msg;
+        } else {
+          testResult.className = 'result-msg failure';
+          testResult.textContent = data.error || 'Connection failed.';
+        }
+      } catch (err) {
+        testResult.style.display = 'block';
+        testResult.className = 'result-msg failure';
+        testResult.textContent = 'Connection test failed: ' + err.message;
+      }
+
+      testLabel.textContent = 'Test Connection';
+      testSpinner.style.display = 'none';
+      updateDeployButton();
+    });
+
+    // =====================================================================
+    // Cloudflare Login
+    // =====================================================================
+    btnCfLogin.addEventListener('click', async () => {
+      cfLoginLabel.textContent = 'Opening browser...';
+      cfLoginSpinner.style.display = 'inline-block';
+      btnCfLogin.disabled = true;
+
+      try {
+        const res = await fetch('/api/login', { method: 'POST' });
+        const data = await res.json();
+
+        if (data.success) {
+          await checkCfStatus();
+        } else {
+          const dot = cfStatus.querySelector('.dot');
+          const text = cfStatus.querySelector('span:last-child');
+          dot.className = 'dot red';
+          text.textContent = data.error || 'Login failed';
+        }
+      } catch (err) {
+        const text = cfStatus.querySelector('span:last-child');
+        text.textContent = 'Login failed: ' + err.message;
+      }
+
+      cfLoginLabel.textContent = 'Login to Cloudflare';
+      cfLoginSpinner.style.display = 'none';
+      btnCfLogin.disabled = false;
+    });
+
+    // =====================================================================
+    // Deploy
+    // =====================================================================
+    btnDeploy.addEventListener('click', async () => {
+      if (!isFormValid() || !cfLoggedIn) return;
+
+      deployLabel.textContent = 'Deploying...';
+      deploySpinner.style.display = 'inline-block';
+      btnDeploy.disabled = true;
+      deployError.textContent = '';
+      deployLog.style.display = 'block';
+      deployLog.innerHTML = '';
+
+      function addLog(msg, type) {
+        const span = document.createElement('span');
+        if (type === 'success') span.className = 'log-success';
+        if (type === 'error') span.className = 'log-error';
+        span.textContent = msg + '\n';
+        deployLog.appendChild(span);
+        deployLog.scrollTop = deployLog.scrollHeight;
+      }
+
+      addLog('Starting deployment...', '');
+
+      try {
+        const res = await fetch('/api/deploy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            apiKey: apiKeyInput.value.trim(),
+            libraryId: libraryIdInput.value.trim(),
+          }),
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          addLog('Worker deployed!', 'success');
+          addLog('Secrets configured!', 'success');
+          addLog('Bearer token generated!', 'success');
+
+          // Show success
+          setTimeout(() => showSuccess(data), 600);
+        } else {
+          addLog(data.error || 'Deployment failed', 'error');
+          deployError.textContent = data.error || 'Deployment failed.';
+        }
+      } catch (err) {
+        addLog('Error: ' + err.message, 'error');
+        deployError.textContent = 'Deployment failed: ' + err.message;
+      }
+
+      deployLabel.textContent = 'Deploy MCP Server';
+      deploySpinner.style.display = 'none';
+      updateDeployButton();
+    });
+
+    // =====================================================================
+    // Success
+    // =====================================================================
+    let deployData = null;
+
+    function showSuccess(data) {
+      deployData = data;
+      formView.style.display = 'none';
+      successView.style.display = 'block';
+
+      // UI tab: token-in-URL format for Claude Desktop connector UI
+      // e.g. https://zotero-mcp.user.workers.dev/mcp/t/{token}
+      const baseUrl = data.url.replace(/\/mcp$/, '');
+      const tokenUrl = `${baseUrl}/mcp/t/${data.token}`;
+      urlField.textContent = tokenUrl;
+
+      // JSON config tab: uses bearer header via mcp-remote
+      const config = JSON.stringify(data.claudeConfig, null, 2);
+      configCode.textContent = config;
+
+      // CLI tab: uses bearer header directly
+      cliCode.textContent = `claude mcp add-json zotero '${JSON.stringify({
+        type: "http",
+        url: data.url,
+        headers: { Authorization: "Bearer " + data.token }
+      })}'`;
+    }
+
+    // Tab switching
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+      document.getElementById('tab-' + tab).classList.add('active');
+      document.getElementById('panel-' + tab).style.display = 'block';
+    }
+
+    // Copy helpers
+    function copyField(fieldId) {
+      const el = document.getElementById(fieldId);
+      const hintId = fieldId.replace('-field', '-copy-hint');
+      const hint = document.getElementById(hintId);
+      navigator.clipboard.writeText(el.textContent).then(() => {
+        hint.textContent = 'Copied!';
+        hint.classList.add('copied');
+        setTimeout(() => {
+          hint.textContent = 'Click to copy';
+          hint.classList.remove('copied');
+        }, 2000);
+      });
+    }
+
+    function copyConfig() {
+      const text = configCode.textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('btn-copy-json');
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = 'Copy';
+          btn.classList.remove('copied');
+        }, 2000);
+      });
+    }
+
+    function copyCli() {
+      const text = cliCode.textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('btn-copy-cli');
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = 'Copy';
+          btn.classList.remove('copied');
+        }, 2000);
+      });
+    }
+
+    function startOver() {
+      successView.style.display = 'none';
+      formView.style.display = 'block';
+      deployLog.style.display = 'none';
+      deployLog.innerHTML = '';
+    }
+  </script>
+</body>
+
+</html>
