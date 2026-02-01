@@ -2,28 +2,12 @@
 
 A remote MCP server for reading, writing, and managing items in your Zotero library, deployed on Cloudflare Workers. Each user deploys their own server to their own Cloudflare account — no shared infrastructure, no cost beyond Cloudflare's generous free tier.
 
-## Quick Start (Setup Wizard)
+## Quick Start
 
-The easiest way to get started — no command line knowledge needed after the first two commands.
-
-### Prerequisites
-
-- [Node.js](https://nodejs.org/) 18+
-- A [Zotero account](https://www.zotero.org/) with a library
-- A [Cloudflare account](https://dash.cloudflare.com/sign-up) (free tier — no credit card required)
-
-### 1. Clone & install
+You'll need [Node.js](https://nodejs.org/) 18+, a [Zotero account](https://www.zotero.org/), and a [Cloudflare account](https://dash.cloudflare.com/sign-up) (free tier — no credit card required).
 
 ```sh
-git clone https://github.com/upascal/zotero-assistant-mcp-remote.git
-cd zotero-assistant-mcp-remote
-npm install
-```
-
-### 2. Run the setup wizard
-
-```sh
-npm run setup
+npx deploy-zotero-assistant-mcp
 ```
 
 This opens a browser-based setup wizard that walks you through:
@@ -76,11 +60,13 @@ After deployment, the wizard shows your secure MCP URL and gives you three ways 
 
 ## Manual Setup (Advanced)
 
-If you prefer to configure everything yourself without the setup wizard.
+If you prefer to configure everything yourself without the setup wizard, or want to develop locally.
 
-### 1. Install dependencies
+### 1. Clone & install
 
 ```sh
+git clone https://github.com/upascal/zotero-assistant-mcp-remote.git
+cd zotero-assistant-mcp-remote
 npm install
 ```
 
