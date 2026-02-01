@@ -40,11 +40,16 @@ After deployment, the wizard shows your secure MCP URL and gives you three ways 
 | **JSON Config** | Manually edit `claude_desktop_config.json` |
 | **Claude Code CLI** | Run a `claude mcp add-json` command in your terminal |
 
+### Screenshots
+
 <p align="center">
-  <img src="assets/claude-desktop-configuration.png" alt="Claude Desktop MCP Connector" width="600"/>
+  <img src="assets/1-configure-credentials.png" alt="Configure Credentials" width="600"/>
 </p>
 <p align="center">
-<i>Add Zotero MCP Connector in Claude Desktop</i>
+  <img src="assets/2-connection-to-claude-instructions.png" alt="Connection to Claude Instructions" width="600"/>
+</p>
+<p align="center">
+  <img src="assets/3-claude-desktop-configuration.png" alt="Claude Desktop Configuration" width="600"/>
 </p>
 
 ## Manual Setup (Advanced)
