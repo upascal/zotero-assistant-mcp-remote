@@ -44,15 +44,21 @@ After deployment, the wizard shows your secure MCP URL and gives you three ways 
 
 <p align="center">
   <img src="assets/1-configure-credentials.png" alt="Configure Credentials" width="600"/>
+</p>
+<p align="center">
   <text>Enter your Zotero credentials. You can find your Library ID and API key in your Zotero account settings. Click "Deploy" to and follow the instructions add the remote MCP server to Claude Desktop.</text>
 </p>
 
 <p align="center">
   <img src="assets/2-connection-to-claude-instructions.png" alt="Connection to Claude Instructions" width="600"/>
+</p>
+<p align="center">
   <text>Follow the instructions to connect to Claude Desktop.</text>
 </p>
 <p align="center">
   <img src="assets/3-claude-desktop-configuration.png" alt="Claude Desktop Configuration" width="600"/>
+</p>
+<p align="center">
   <text>
   Add the remote MCP server to Claude Desktop. You can find your MCP URL in the setup wizard after deployment.
   </text>
