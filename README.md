@@ -69,9 +69,9 @@ After deployment, the wizard shows your secure MCP URL and gives you three ways 
 <p align="center">
   <img src="assets/4-configure-mcp-server-settings.png" alt="Configure MCP Server Settings" width="600"/>
   <img src="assets/5-turn-on-always-allow.png" alt="Turn on Always Allow" width="600"/>
-<text>Turn on "Always allow" for the Zotero Assistant MCP server to avoid having to approve every request.</text>
-
-
+</p>
+<p align="center">
+  <text>Turn on "Always allow" for the Zotero Assistant MCP server to avoid having to approve every request.</text>
 </p>
 
 ## Manual Setup (Advanced)
