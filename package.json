@@ -2,28 +2,12 @@
   "name": "zotero-assistant-mcp-remote",
   "version": "0.3.0",
   "private": true,
-  "description": "Remote Zotero MCP server on Cloudflare Workers",
+  "description": "Zotero MCP server — monorepo with pure library and Cloudflare Workers deployer",
+  "workspaces": ["packages/*"],
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "setup": "tsx setup/server.ts",
-    "cf-typegen": "wrangler types --env-interface CloudflareBindings",
-    "test": "vitest run",
-    "test:watch": "vitest"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "1.25.2",
-    "agents": "^0.3.6",
-    "zod": "^3.24.0",
-    "zotero-api-client": "^0.45.0"
-  },
-  "devDependencies": {
-    "@cloudflare/workers-types": "^4.20250109.0",
-    "@types/node": "^22.0.0",
-    "open": "^10.0.0",
-    "tsx": "^4.0.0",
-    "typescript": "^5.7.0",
-    "vitest": "^4.0.18",
-    "wrangler": "^4.0.0"
+    "dev": "npm run dev --workspace=packages/deploy",
+    "deploy": "npm run deploy --workspace=packages/deploy",
+    "setup": "npm run setup --workspace=packages/deploy",
+    "test": "npm run test --workspace=packages/mcp"
   }
 }

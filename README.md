@@ -1,6 +1,6 @@
 # Zotero Assistant MCP — Remote (Cloudflare Workers)
 
-A remote MCP server for reading, writing, and managing items in your Zotero library, deployed on Cloudflare Workers. Each user deploys their own server to their own Cloudflare account — no shared infrastructure, no cost to anyone but Cloudflare's generous free tier.
+A remote MCP server for reading, writing, and managing items in your Zotero library, deployed on Cloudflare Workers. Each user deploys their own server to their own Cloudflare account — no shared infrastructure, no cost beyond Cloudflare's generous free tier.
 
 ## Quick Start (Setup Wizard)
 
@@ -162,6 +162,65 @@ Add this to `~/Library/Application Support/Claude/claude_desktop_config.json` (m
 claude mcp add-json zotero '{"type":"http","url":"https://zotero-assistant-mcp.<your-subdomain>.workers.dev/mcp","headers":{"Authorization":"Bearer <your-bearer-token>"}}'
 ```
 
+## Local Server (Alternative)
+
+If you don't want to deploy to Cloudflare, you can run the MCP server locally as a stdio subprocess. No cloud account needed — just your Zotero credentials.
+
+### Claude Desktop config
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
+
+```json
+{
+  "mcpServers": {
+    "zotero": {
+      "command": "npx",
+      "args": ["zotero-assistant-mcp"],
+      "env": {
+        "ZOTERO_API_KEY": "your-api-key-here",
+        "ZOTERO_LIBRARY_ID": "your-library-id-here"
+      }
+    }
+  }
+}
+```
+
+### Claude Code CLI
+
+```sh
+claude mcp add zotero -- npx zotero-assistant-mcp \
+  --env ZOTERO_API_KEY=your-api-key \
+  --env ZOTERO_LIBRARY_ID=your-library-id
+```
+
+### Get your credentials
+
+1. Go to [zotero.org/settings/keys](https://www.zotero.org/settings/keys)
+2. Create a new API key with read/write access
+3. Your Library ID is shown on the same page (it's the number in your profile URL)
+
+## Using as a library
+
+The `zotero-assistant-mcp` package can be imported by other projects to build custom integrations:
+
+```typescript
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { registerTools } from "zotero-assistant-mcp";
+
+const server = new McpServer({ name: "my-server", version: "1.0.0" });
+registerTools(server, { apiKey: "...", libraryId: "..." });
+
+// Connect to any transport you want
+```
+
+The Zotero API functions are also exported individually:
+
+```typescript
+import { searchItems, createItem, getItem } from "zotero-assistant-mcp";
+
+const results = await searchItems(apiKey, libraryId, { query: "machine learning" });
+```
+
 ## Security
 
 Every MCP endpoint is protected by a bearer token. The server supports two authentication methods:
@@ -189,7 +248,7 @@ The wizard will show a "Not logged in" status in Step 3. Click "Login to Cloudfl
 **Can I sign up with GitHub/Google?**
 Yes. Cloudflare supports email, Google, and Apple sign-in. When `wrangler login` opens your browser, you can use any of these methods to create or access your account.
 
-## Available Tools (16)
+## Available Tools (18)
 
 | Category | Tool | Description |
 |----------|------|-------------|
@@ -204,11 +263,31 @@ Yes. Cloudflare supports email, Google, and Apple sign-in. When `wrangler login`
 | Search | `list_tags` | All tags in library |
 | Read | `get_item` | Full metadata + children for an item |
 | Read | `get_item_fulltext` | Extracted text content |
+| Read | `get_attachment_content` | Read snapshot HTML or attachment files |
+| Read | `get_library_stats` | Library overview with counts and top tags |
 | Write | `save_item` | Create new item with metadata |
 | Write | `attach_pdf` | Attach PDF to existing item |
 | Write | `attach_snapshot` | Attach webpage snapshot |
 | Write | `create_note` | Create note on existing item |
 | Write | `update_item` | Modify metadata/tags |
+
+## Project Structure
+
+```
+packages/
+├── mcp/          # zotero-assistant-mcp — pure MCP library + stdio CLI
+│   ├── src/
+│   │   ├── index.ts    # registerTools() + re-exports
+│   │   └── zotero.ts   # Zotero API wrapper
+│   ├── bin/cli.ts      # npx zotero-assistant-mcp
+│   └── tests/
+└── deploy/       # deploy-zotero-assistant-mcp — Cloudflare Workers deployer
+    ├── src/
+    │   └── index.ts    # Worker entry (McpAgent + auth)
+    ├── bin/cli.ts      # npx deploy-zotero-assistant-mcp
+    ├── setup/          # Browser-based setup wizard
+    └── wrangler.jsonc
+```
 
 ## Testing with MCP Inspector
 

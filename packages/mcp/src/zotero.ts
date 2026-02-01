@@ -609,6 +609,7 @@ export async function attachSnapshot(
 
 interface SearchParams {
   query?: string;
+  qmode?: string;
   tag?: string | string[];
   itemType?: string;
   collectionId?: string;
@@ -625,6 +626,7 @@ export async function searchItems(
 ) {
   const {
     query,
+    qmode = "titleCreatorYear",
     tag,
     itemType,
     collectionId,
@@ -637,7 +639,10 @@ export async function searchItems(
   const zot = zotClient(apiKey, libraryId);
   const reqParams: any = { sort, direction, limit, start: offset };
 
-  if (query) reqParams.q = query;
+  if (query) {
+    reqParams.q = query;
+    reqParams.qmode = qmode;
+  }
   if (tag)
     reqParams.tag = Array.isArray(tag) ? tag.join(" || ") : tag;
   if (itemType) reqParams.itemType = resolveItemType(itemType);
@@ -882,6 +887,133 @@ export async function createNote(
 }
 
 // -------------------------------------------------------------------------
+// Get attachment content
+// -------------------------------------------------------------------------
+
+export async function getAttachmentContent(
+  apiKey: string,
+  libraryId: string,
+  itemKey: string
+) {
+  const zot = zotClient(apiKey, libraryId);
+  try {
+    // First get the attachment metadata to know what we're dealing with
+    const itemResp = await zot.items(itemKey).get();
+    const data = itemResp.raw?.data || itemResp.raw;
+
+    if (data.itemType !== "attachment") {
+      return {
+        error: `Item ${itemKey} is not an attachment (type: ${data.itemType}). Use get_item to find child attachment keys.`,
+      };
+    }
+
+    const contentType = data.contentType || "";
+    const filename = data.filename || data.title || "unknown";
+
+    // Download the file content
+    const fileResp = await fetch(
+      `https://api.zotero.org/users/${libraryId}/items/${itemKey}/file`,
+      {
+        headers: { "Zotero-API-Key": apiKey },
+        signal: AbortSignal.timeout(60000),
+      }
+    );
+
+    if (!fileResp.ok) {
+      return {
+        error: `Failed to download attachment: HTTP ${fileResp.status} ${fileResp.statusText}`,
+        item_key: itemKey,
+        filename,
+        contentType,
+      };
+    }
+
+    // For text-based content (HTML, plain text, etc.), return as string
+    if (
+      contentType.includes("html") ||
+      contentType.includes("text") ||
+      contentType.includes("xml") ||
+      contentType.includes("json")
+    ) {
+      const text = await fileResp.text();
+      return {
+        item_key: itemKey,
+        filename,
+        contentType,
+        size_bytes: text.length,
+        content: text,
+      };
+    }
+
+    // For binary content (PDFs, images), return metadata only + note about fulltext
+    const buffer = await fileResp.arrayBuffer();
+    return {
+      item_key: itemKey,
+      filename,
+      contentType,
+      size_bytes: buffer.byteLength,
+      content: null,
+      message: `Binary file (${contentType}). Use get_item_fulltext to retrieve extracted text content if available.`,
+    };
+  } catch (err: any) {
+    return { error: `Failed to get attachment content: ${err.message}` };
+  }
+}
+
+// -------------------------------------------------------------------------
+// Get library stats
+// -------------------------------------------------------------------------
+
+export async function getLibraryStats(
+  apiKey: string,
+  libraryId: string
+) {
+  const zot = zotClient(apiKey, libraryId);
+  try {
+    // Run three queries in parallel for efficiency
+    const [itemsResp, collectionsResult, tagsResult] = await Promise.all([
+      // Get total item count with limit=0 (just headers)
+      zot.items().top().get({ limit: 1, sort: "dateModified", direction: "desc" }),
+      listCollections(apiKey, libraryId),
+      listTags(apiKey, libraryId, { limit: 25, offset: 0 }),
+    ]);
+
+    const totalItems = parseInt(
+      itemsResp.response?.headers?.get("Total-Results") || "0",
+      10
+    );
+
+    // Most recent item
+    const recentItem = (itemsResp.raw || [])[0];
+    const lastModified = recentItem
+      ? {
+          title: recentItem.data?.title || "(untitled)",
+          date: recentItem.data?.dateModified || null,
+        }
+      : null;
+
+    // Sort tags by count
+    const topTags = (tagsResult.tags || [])
+      .sort((a: any, b: any) => b.numItems - a.numItems)
+      .slice(0, 15);
+
+    return {
+      total_items: totalItems,
+      total_collections: collectionsResult.length,
+      total_tags: topTags.length,
+      collections: collectionsResult.map((c: any) => ({
+        key: c.key,
+        name: c.name,
+      })),
+      top_tags: topTags,
+      last_modified_item: lastModified,
+    };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
+
+// -------------------------------------------------------------------------
 // Update item
 // -------------------------------------------------------------------------
 
@@ -894,6 +1026,8 @@ interface UpdateChanges {
   add_tags?: string[];
   remove_tags?: string[];
   collections?: string[];
+  add_collections?: string[];
+  remove_collections?: string[];
 }
 
 export async function updateItem(
@@ -934,8 +1068,20 @@ export async function updateItem(
       patch.tags = updated.map((t: string) => ({ tag: t }));
     }
 
+    // Collection handling: replace, add, or remove
     if (changes.collections !== undefined) {
       patch.collections = changes.collections;
+    } else if (changes.add_collections || changes.remove_collections) {
+      let updated = [...(currentData.collections || [])];
+      if (changes.add_collections) {
+        for (const c of changes.add_collections) {
+          if (!updated.includes(c)) updated.push(c);
+        }
+      }
+      if (changes.remove_collections) {
+        updated = updated.filter((c: string) => !changes.remove_collections!.includes(c));
+      }
+      patch.collections = updated;
     }
 
     await zot.items(itemKey).version(version).patch(patch);

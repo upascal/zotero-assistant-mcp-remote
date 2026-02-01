@@ -1,0 +1,25 @@
+{
+  "name": "zotero-assistant-mcp",
+  "version": "0.3.0",
+  "description": "Zotero MCP tools — transport-agnostic library for managing a Zotero library via Model Context Protocol",
+  "type": "module",
+  "main": "src/index.ts",
+  "bin": {
+    "zotero-assistant-mcp": "bin/cli.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.25.2",
+    "tsx": "^4.0.0",
+    "zod": "^3.24.0",
+    "zotero-api-client": "^0.45.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^4.0.18"
+  }
+}
