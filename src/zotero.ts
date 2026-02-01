@@ -907,18 +907,21 @@ export async function updateItem(
     const itemResp = await zot.items(itemKey).get();
     const raw = itemResp.raw;
     const version = raw.version;
-    const data = { ...raw.data };
+    const currentData = raw.data;
 
-    if (changes.title !== undefined) data.title = changes.title;
-    if (changes.abstract !== undefined) data.abstractNote = changes.abstract;
-    if (changes.date !== undefined) data.date = changes.date;
-    if (changes.extra !== undefined) data.extra = changes.extra;
+    // Build a partial object with only the changed fields
+    const patch: Record<string, any> = {};
+
+    if (changes.title !== undefined) patch.title = changes.title;
+    if (changes.abstract !== undefined) patch.abstractNote = changes.abstract;
+    if (changes.date !== undefined) patch.date = changes.date;
+    if (changes.extra !== undefined) patch.extra = changes.extra;
 
     // Tag handling: replace, add, or remove
     if (changes.tags !== undefined) {
-      data.tags = changes.tags.map((t: string) => ({ tag: t }));
-    } else {
-      const existingTags = (data.tags || []).map((t: any) => t.tag || t);
+      patch.tags = changes.tags.map((t: string) => ({ tag: t }));
+    } else if (changes.add_tags || changes.remove_tags) {
+      const existingTags = (currentData.tags || []).map((t: any) => t.tag || t);
       let updated = [...existingTags];
       if (changes.add_tags) {
         for (const t of changes.add_tags) {
@@ -928,16 +931,14 @@ export async function updateItem(
       if (changes.remove_tags) {
         updated = updated.filter((t: string) => !changes.remove_tags!.includes(t));
       }
-      if (changes.add_tags || changes.remove_tags) {
-        data.tags = updated.map((t: string) => ({ tag: t }));
-      }
+      patch.tags = updated.map((t: string) => ({ tag: t }));
     }
 
     if (changes.collections !== undefined) {
-      data.collections = changes.collections;
+      patch.collections = changes.collections;
     }
 
-    await zot.items(itemKey).patch(version, data);
+    await zot.items(itemKey).version(version).patch(patch);
 
     return {
       success: true,
