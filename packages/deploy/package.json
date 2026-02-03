@@ -10,7 +10,7 @@
     "deploy": "wrangler deploy",
     "setup": "tsx setup/server.ts",
     "cf-typegen": "wrangler types --env-interface CloudflareBindings",
-    "build": "mkdir -p dist && npx esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/worker.mjs --external:cloudflare --external:cloudflare:workers --external:cloudflare:email"
+    "build": "wrangler deploy --dry-run --outdir=dist && mv dist/index.js dist/worker.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.25.2",

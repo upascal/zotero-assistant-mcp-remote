@@ -24,15 +24,9 @@ jobs:
       - name: Build worker bundle
         run: |
           cd packages/deploy
-          mkdir -p dist
-          # Use esbuild to create the worker bundle
-          npx esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/worker.mjs --external:cloudflare --external:cloudflare:workers --external:cloudflare:email || true
-
-          # If esbuild fails, create a basic worker file that will work with mcp-deploy
-          if [ ! -s dist/worker.mjs ] || [ ! -f dist/worker.mjs ]; then
-            echo "/* Zotero Assistant MCP Worker */" > dist/worker.mjs
-            cat src/index.ts >> dist/worker.mjs
-          fi
+          # Use wrangler to build with proper nodejs_compat handling
+          npx wrangler deploy --dry-run --outdir=dist
+          mv dist/index.js dist/worker.mjs
 
       - name: Verify files exist
         run: |
