@@ -35,7 +35,9 @@ import {
   createCollection,
   getAttachmentContent,
   getLibraryStats,
+  listGroups,
 } from "./zotero.js";
+import type { LibraryType } from "./zotero.js";
 
 // -------------------------------------------------------------------------
 // Public config type
@@ -47,6 +49,18 @@ export interface ZoteroMcpConfig {
 }
 
 // -------------------------------------------------------------------------
+// Shared Zod schema for the optional group_id parameter
+// -------------------------------------------------------------------------
+
+const groupIdParam = z
+  .string()
+  .optional()
+  .describe(
+    "Target a group library instead of your personal library. " +
+    "Pass the group ID from list_groups. Omit to use your personal library."
+  );
+
+// -------------------------------------------------------------------------
 // registerTools — the main export
 // -------------------------------------------------------------------------
 
@@ -54,6 +68,7 @@ export function registerTools(
   server: McpServer,
   config: ZoteroMcpConfig
 ): void {
+  /** Validate that config has credentials. */
   const getCredentials = () => {
     const { apiKey, libraryId } = config;
     if (!apiKey || !libraryId) {
@@ -65,18 +80,30 @@ export function registerTools(
     return { apiKey, libraryId };
   };
 
+  /**
+   * Resolve which library to target.
+   * If group_id is provided, target that group; otherwise target the user library.
+   */
+  const resolveLibrary = (groupId?: string): { targetId: string; libraryType: LibraryType } => {
+    const { libraryId } = getCredentials();
+    if (groupId) {
+      return { targetId: groupId, libraryType: "group" };
+    }
+    return { targetId: libraryId, libraryType: "user" };
+  };
+
   // =====================================================================
   // Utility Tools
   // =====================================================================
 
   server.tool(
     "get_help",
-    "Get workflow instructions for using Zotero tools. Call with no topic for an overview, or with a topic for detailed guidance. Topics: search, saving, attachments, updating, collections.",
+    "Get workflow instructions for using Zotero tools. Call with no topic for an overview, or with a topic for detailed guidance. Topics: search, saving, attachments, updating, collections, groups.",
     {
       topic: z
         .string()
         .optional()
-        .describe("Help topic: search, saving, attachments, updating, collections. Omit for overview."),
+        .describe("Help topic: search, saving, attachments, updating, collections, groups. Omit for overview."),
     },
     async (params) => {
       const topics: Record<string, any> = {
@@ -87,6 +114,7 @@ export function registerTools(
             "attachments — Snapshots vs PDFs, reading attachment content back",
             "updating — Editing metadata, tags, moving between collections",
             "collections — Creating, listing, organizing collections",
+            "groups — Working with group libraries",
           ],
           available_tools: {
             search_and_browse: [
@@ -110,11 +138,15 @@ export function registerTools(
               "create_note — Create note on existing item",
               "update_item — Modify metadata, tags, and collections",
             ],
+            groups: [
+              "list_groups — List all group libraries you have access to",
+            ],
           },
           quick_tips: [
             "Always include 2-5 descriptive tags when saving",
             "Use get_library_stats for a quick overview instead of broad searches",
             "Use get_attachment_content (not get_item_fulltext) to read saved snapshots",
+            "Pass group_id to any tool to work with a group library instead of your personal one",
           ],
         },
 
@@ -204,11 +236,31 @@ export function registerTools(
             "Use collection_id in search_items to search within a collection",
           ],
         },
+
+        groups: {
+          description: "Working with group libraries",
+          workflow: [
+            "1. Call list_groups to see all groups you have access to",
+            "2. Note the group ID you want to target",
+            "3. Pass group_id to any tool to operate on that group library",
+            "4. Omit group_id to use your personal library (the default)",
+          ],
+          tips: [
+            "Your API key must have permission for the group — check https://www.zotero.org/settings/keys",
+            "Group collections and items are completely separate from your personal library",
+            "Every tool accepts an optional group_id parameter",
+          ],
+          examples: [
+            "list_groups → returns [{id: '12345', name: 'My Lab', ...}]",
+            "search_items(query: 'climate', group_id: '12345') → searches within the group",
+            "save_item(title: '...', group_id: '12345') → saves to the group library",
+          ],
+        },
       };
 
       const topic = params.topic?.toLowerCase() || "overview";
       const content = topics[topic] || {
-        error: `Unknown topic '${topic}'. Available: search, saving, attachments, updating, collections`,
+        error: `Unknown topic '${topic}'. Available: search, saving, attachments, updating, collections, groups`,
       };
 
       return {
@@ -260,6 +312,22 @@ export function registerTools(
   );
 
   // =====================================================================
+  // Groups
+  // =====================================================================
+
+  server.tool(
+    "list_groups",
+    "List all Zotero group libraries your API key has access to. Returns group IDs, names, and item counts. Use a group ID with the group_id parameter on other tools to work with that group's library.",
+    async () => {
+      const { apiKey, libraryId } = getCredentials();
+      const result = await listGroups(apiKey, libraryId);
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
+
+  // =====================================================================
   // Search & Browse Tools
   // =====================================================================
 
@@ -302,10 +370,12 @@ export function registerTools(
         .default(25)
         .describe("Max results (1-100)"),
       offset: z.number().min(0).default(0).describe("Pagination offset"),
+      group_id: groupIdParam,
     },
     async (params) => {
-      const { apiKey, libraryId } = getCredentials();
-      const result = await searchItems(apiKey, libraryId, {
+      const { apiKey } = getCredentials();
+      const { targetId, libraryType } = resolveLibrary(params.group_id);
+      const result = await searchItems(apiKey, targetId, {
         query: params.query,
         qmode: params.qmode,
         tag: params.tag,
@@ -315,7 +385,7 @@ export function registerTools(
         direction: params.direction,
         limit: params.limit,
         offset: params.offset,
-      });
+      }, libraryType);
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
       };
@@ -341,19 +411,22 @@ export function registerTools(
         .default(25)
         .describe("Max results"),
       offset: z.number().min(0).default(0).describe("Pagination offset"),
+      group_id: groupIdParam,
     },
     async (params) => {
-      const { apiKey, libraryId } = getCredentials();
+      const { apiKey } = getCredentials();
+      const { targetId, libraryType } = resolveLibrary(params.group_id);
       const result = await getCollectionItems(
         apiKey,
-        libraryId,
+        targetId,
         params.collection_id,
         {
           sort: params.sort,
           direction: params.direction,
           limit: params.limit,
           offset: params.offset,
-        }
+        },
+        libraryType
       );
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
@@ -375,13 +448,15 @@ export function registerTools(
         .enum(["dateAdded", "dateModified"])
         .default("dateAdded")
         .describe("Sort by dateAdded or dateModified"),
+      group_id: groupIdParam,
     },
     async (params) => {
-      const { apiKey, libraryId } = getCredentials();
-      const result = await getRecentItems(apiKey, libraryId, {
+      const { apiKey } = getCredentials();
+      const { targetId, libraryType } = resolveLibrary(params.group_id);
+      const result = await getRecentItems(apiKey, targetId, {
         limit: params.limit,
         sort: params.sort,
-      });
+      }, libraryType);
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
       };
@@ -391,10 +466,14 @@ export function registerTools(
   server.tool(
     "list_collections",
     "List all collections (folders) in the Zotero library. Call this before save_item to find the right collection_id.",
-    async () => {
-      const { apiKey, libraryId } = getCredentials();
+    {
+      group_id: groupIdParam,
+    },
+    async (params) => {
+      const { apiKey } = getCredentials();
+      const { targetId, libraryType } = resolveLibrary(params.group_id);
       try {
-        const collections = await listCollections(apiKey, libraryId);
+        const collections = await listCollections(apiKey, targetId, libraryType);
         return {
           content: [
             { type: "text", text: JSON.stringify(collections, null, 2) },
@@ -421,14 +500,17 @@ export function registerTools(
         .describe(
           "Parent collection key to nest under (from list_collections). Omit for top-level."
         ),
+      group_id: groupIdParam,
     },
-    async ({ name, parent_collection_id }) => {
-      const { apiKey, libraryId } = getCredentials();
+    async ({ name, parent_collection_id, group_id }) => {
+      const { apiKey } = getCredentials();
+      const { targetId, libraryType } = resolveLibrary(group_id);
       const result = await createCollection(
         apiKey,
-        libraryId,
+        targetId,
         name,
-        parent_collection_id
+        parent_collection_id,
+        libraryType
       );
 
       if (result.success) {
@@ -455,13 +537,15 @@ export function registerTools(
         .default(100)
         .describe("Max tags to return"),
       offset: z.number().min(0).default(0).describe("Pagination offset"),
+      group_id: groupIdParam,
     },
     async (params) => {
-      const { apiKey, libraryId } = getCredentials();
-      const result = await listTags(apiKey, libraryId, {
+      const { apiKey } = getCredentials();
+      const { targetId, libraryType } = resolveLibrary(params.group_id);
+      const result = await listTags(apiKey, targetId, {
         limit: params.limit,
         offset: params.offset,
-      });
+      }, libraryType);
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
       };
@@ -477,10 +561,12 @@ export function registerTools(
     "Get full metadata for a single Zotero item by its key, including a summary of child attachments and notes.",
     {
       item_key: z.string().describe("The Zotero item key"),
+      group_id: groupIdParam,
     },
-    async ({ item_key }) => {
-      const { apiKey, libraryId } = getCredentials();
-      const result = await getItem(apiKey, libraryId, item_key);
+    async ({ item_key, group_id }) => {
+      const { apiKey } = getCredentials();
+      const { targetId, libraryType } = resolveLibrary(group_id);
+      const result = await getItem(apiKey, targetId, item_key, libraryType);
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
       };
@@ -494,10 +580,12 @@ export function registerTools(
       item_key: z
         .string()
         .describe("The Zotero item key (parent or attachment)"),
+      group_id: groupIdParam,
     },
-    async ({ item_key }) => {
-      const { apiKey, libraryId } = getCredentials();
-      const result = await getItemFulltext(apiKey, libraryId, item_key);
+    async ({ item_key, group_id }) => {
+      const { apiKey } = getCredentials();
+      const { targetId, libraryType } = resolveLibrary(group_id);
+      const result = await getItemFulltext(apiKey, targetId, item_key, libraryType);
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
       };
@@ -563,11 +651,13 @@ export function registerTools(
         .string()
         .optional()
         .describe("Additional notes for the Extra field"),
+      group_id: groupIdParam,
     },
     async (params) => {
-      const { apiKey, libraryId } = getCredentials();
+      const { apiKey } = getCredentials();
+      const { targetId, libraryType } = resolveLibrary(params.group_id);
 
-      const result = await createItem(apiKey, libraryId, {
+      const result = await createItem(apiKey, targetId, {
         title: params.title,
         itemType: params.item_type,
         authors: params.authors || [],
@@ -584,7 +674,7 @@ export function registerTools(
         pdfUrl: params.pdf_url,
         snapshotUrl: params.snapshot_url,
         extra: params.extra,
-      });
+      }, libraryType);
 
       if (result.success) {
         (result as any).nextSteps = [
@@ -609,15 +699,18 @@ export function registerTools(
         .describe("The key of the parent item to attach to"),
       pdf_url: z.string().url().describe("URL to download the PDF from"),
       filename: z.string().optional().describe("Optional filename"),
+      group_id: groupIdParam,
     },
-    async ({ parent_item_key, pdf_url, filename }) => {
-      const { apiKey, libraryId } = getCredentials();
+    async ({ parent_item_key, pdf_url, filename, group_id }) => {
+      const { apiKey } = getCredentials();
+      const { targetId, libraryType } = resolveLibrary(group_id);
       const result = await attachPdfFromUrl(
         apiKey,
-        libraryId,
+        targetId,
         parent_item_key,
         pdf_url,
-        filename
+        filename,
+        libraryType
       );
 
       if (result.success) {
@@ -645,15 +738,18 @@ export function registerTools(
         .string()
         .optional()
         .describe("Optional title for the snapshot"),
+      group_id: groupIdParam,
     },
-    async ({ parent_item_key, url, title }) => {
-      const { apiKey, libraryId } = getCredentials();
+    async ({ parent_item_key, url, title, group_id }) => {
+      const { apiKey } = getCredentials();
+      const { targetId, libraryType } = resolveLibrary(group_id);
       const result = await attachSnapshot(
         apiKey,
-        libraryId,
+        targetId,
         parent_item_key,
         url,
-        title
+        title,
+        libraryType
       );
 
       if (result.success) {
@@ -680,15 +776,18 @@ export function registerTools(
         .array(z.string())
         .optional()
         .describe("Tags to apply to the note"),
+      group_id: groupIdParam,
     },
     async (params) => {
-      const { apiKey, libraryId } = getCredentials();
+      const { apiKey } = getCredentials();
+      const { targetId, libraryType } = resolveLibrary(params.group_id);
       const result = await createNote(
         apiKey,
-        libraryId,
+        targetId,
         params.item_key,
         params.content,
-        params.tags || []
+        params.tags || [],
+        libraryType
       );
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
@@ -729,10 +828,12 @@ export function registerTools(
       abstract: z.string().optional().describe("New abstract"),
       date: z.string().optional().describe("New date"),
       extra: z.string().optional().describe("New Extra field content"),
+      group_id: groupIdParam,
     },
     async (params) => {
-      const { apiKey, libraryId } = getCredentials();
-      const result = await updateItem(apiKey, libraryId, params.item_key, {
+      const { apiKey } = getCredentials();
+      const { targetId, libraryType } = resolveLibrary(params.group_id);
+      const result = await updateItem(apiKey, targetId, params.item_key, {
         title: params.title,
         tags: params.tags,
         add_tags: params.add_tags,
@@ -743,7 +844,7 @@ export function registerTools(
         abstract: params.abstract,
         date: params.date,
         extra: params.extra,
-      });
+      }, libraryType);
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
       };
@@ -759,10 +860,12 @@ export function registerTools(
     "Read the content of an attachment (HTML snapshot, text file, etc.). For PDFs, use get_item_fulltext instead. Pass the attachment's own item key (found in get_item children).",
     {
       item_key: z.string().describe("The attachment item key (from get_item children array)"),
+      group_id: groupIdParam,
     },
     async (params) => {
-      const { apiKey, libraryId } = getCredentials();
-      const result = await getAttachmentContent(apiKey, libraryId, params.item_key);
+      const { apiKey } = getCredentials();
+      const { targetId, libraryType } = resolveLibrary(params.group_id);
+      const result = await getAttachmentContent(apiKey, targetId, params.item_key, libraryType);
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
       };
@@ -772,9 +875,13 @@ export function registerTools(
   server.tool(
     "get_library_stats",
     "Get a quick overview of the library: total items, collections, and top tags. Use this instead of broad searches when the user asks 'what do I have?' or 'how many items?'.",
-    async () => {
-      const { apiKey, libraryId } = getCredentials();
-      const result = await getLibraryStats(apiKey, libraryId);
+    {
+      group_id: groupIdParam,
+    },
+    async (params) => {
+      const { apiKey } = getCredentials();
+      const { targetId, libraryType } = resolveLibrary(params.group_id);
+      const result = await getLibraryStats(apiKey, targetId, libraryType);
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
       };

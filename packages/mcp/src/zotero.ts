@@ -68,11 +68,17 @@ function unwrapUrl(raw: string): string {
 }
 
 // -------------------------------------------------------------------------
+// Library type
+// -------------------------------------------------------------------------
+
+export type LibraryType = "user" | "group";
+
+// -------------------------------------------------------------------------
 // Zotero client factory
 // -------------------------------------------------------------------------
 
-function zotClient(apiKey: string, libraryId: string) {
-  return api(apiKey).library("user", libraryId);
+function zotClient(apiKey: string, libraryId: string, libraryType: LibraryType = "user") {
+  return api(apiKey).library(libraryType, libraryId);
 }
 
 // -------------------------------------------------------------------------
@@ -117,11 +123,62 @@ function formatItemSummary(raw: any): ItemSummary {
 }
 
 // -------------------------------------------------------------------------
+// Groups
+// -------------------------------------------------------------------------
+
+export async function listGroups(apiKey: string, userId: string) {
+  const zot = zotClient(apiKey, userId, "user");
+  try {
+    const response = await zot.get({ resource: "groups" } as any);
+    // The zotero-api-client may not support .groups() directly on a user library,
+    // so fall back to a direct fetch if needed.
+    const raw = response?.raw;
+    if (raw) {
+      return raw.map((g: any) => ({
+        id: String(g.id),
+        name: g.data?.name || "(unnamed)",
+        type: g.data?.type || null,
+        owner: g.meta?.owner || null,
+        numItems: g.meta?.numItems ?? null,
+      }));
+    }
+    return [];
+  } catch {
+    // Fallback: direct fetch to the Zotero API
+    try {
+      const resp = await fetch(
+        `https://api.zotero.org/users/${userId}/groups`,
+        {
+          headers: {
+            "Zotero-API-Key": apiKey,
+            "Zotero-API-Version": "3",
+          },
+          signal: AbortSignal.timeout(15000),
+        }
+      );
+      if (!resp.ok) {
+        return { error: `Failed to list groups: HTTP ${resp.status} ${resp.statusText}` };
+      }
+      const data = await resp.json() as any[];
+      return data.map((g: any) => ({
+        id: String(g.id),
+        name: g.data?.name || "(unnamed)",
+        type: g.data?.type || null,
+        owner: g.meta?.owner || null,
+        numItems: g.meta?.numItems ?? null,
+      }));
+    } catch (err: any) {
+      return { error: `Failed to list groups: ${err.message}` };
+    }
+  }
+}
+
+// -------------------------------------------------------------------------
 // Collections
 // -------------------------------------------------------------------------
 
-export async function listCollections(apiKey: string, libraryId: string) {
-  const zot = zotClient(apiKey, libraryId);
+export async function listCollections(apiKey: string, libraryId: string, libraryType: LibraryType = "user") {
+  const zot = zotClient(apiKey, libraryId, libraryType);
   const response = await zot.collections().get();
   const raw = response.raw;
   return raw.map((c: any) => ({
@@ -135,13 +192,14 @@ export async function createCollection(
   apiKey: string,
   libraryId: string,
   name: string,
-  parentCollectionId?: string
+  parentCollectionId?: string,
+  libraryType: LibraryType = "user"
 ) {
   if (!name || !name.trim()) {
     return { success: false, error: "Collection name is required" };
   }
 
-  const zot = zotClient(apiKey, libraryId);
+  const zot = zotClient(apiKey, libraryId, libraryType);
   const data: any = { name: name.trim() };
   if (parentCollectionId) {
     data.parentCollection = parentCollectionId;
@@ -216,7 +274,8 @@ interface CreateItemParams {
 export async function createItem(
   apiKey: string,
   libraryId: string,
-  params: CreateItemParams
+  params: CreateItemParams,
+  libraryType: LibraryType = "user"
 ) {
   const {
     title,
@@ -293,7 +352,7 @@ export async function createItem(
   }
 
   // Create
-  const zot = zotClient(apiKey, libraryId);
+  const zot = zotClient(apiKey, libraryId, libraryType);
   try {
     const response = await zot.items().post([template]);
 
@@ -318,14 +377,18 @@ export async function createItem(
         apiKey,
         libraryId,
         itemKey,
-        pdfUrl
+        pdfUrl,
+        undefined,
+        libraryType
       );
     } else if (snapshotUrl) {
       result.snapshot_attachment = await attachSnapshot(
         apiKey,
         libraryId,
         itemKey,
-        snapshotUrl
+        snapshotUrl,
+        undefined,
+        libraryType
       );
     }
 
@@ -344,7 +407,8 @@ export async function attachPdfFromUrl(
   libraryId: string,
   parentItemKey: string,
   pdfUrl: string,
-  filename?: string
+  filename?: string,
+  libraryType: LibraryType = "user"
 ) {
   pdfUrl = unwrapUrl(pdfUrl);
 
@@ -399,7 +463,7 @@ export async function attachPdfFromUrl(
     );
 
     // Upload via Zotero API
-    const zot = zotClient(apiKey, libraryId);
+    const zot = zotClient(apiKey, libraryId, libraryType);
     const attachmentTemplate = {
       itemType: "attachment",
       parentItem: parentItemKey,
@@ -470,7 +534,8 @@ export async function attachSnapshot(
   libraryId: string,
   parentItemKey: string,
   url: string,
-  title?: string
+  title?: string,
+  libraryType: LibraryType = "user"
 ) {
   url = unwrapUrl(url);
 
@@ -534,7 +599,7 @@ export async function attachSnapshot(
     const buffer = Buffer.from(html, "utf-8");
 
     // Upload via Zotero API
-    const zot = zotClient(apiKey, libraryId);
+    const zot = zotClient(apiKey, libraryId, libraryType);
     const attachmentTemplate = {
       itemType: "attachment",
       parentItem: parentItemKey,
@@ -622,7 +687,8 @@ interface SearchParams {
 export async function searchItems(
   apiKey: string,
   libraryId: string,
-  params: SearchParams
+  params: SearchParams,
+  libraryType: LibraryType = "user"
 ) {
   const {
     query,
@@ -636,7 +702,7 @@ export async function searchItems(
     offset = 0,
   } = params;
 
-  const zot = zotClient(apiKey, libraryId);
+  const zot = zotClient(apiKey, libraryId, libraryType);
   const reqParams: any = { sort, direction, limit, start: offset };
 
   if (query) {
@@ -684,9 +750,10 @@ export async function searchItems(
 export async function getItem(
   apiKey: string,
   libraryId: string,
-  itemKey: string
+  itemKey: string,
+  libraryType: LibraryType = "user"
 ) {
-  const zot = zotClient(apiKey, libraryId);
+  const zot = zotClient(apiKey, libraryId, libraryType);
   try {
     const [itemResp, childrenResp] = await Promise.all([
       zot.items(itemKey).get(),
@@ -717,55 +784,168 @@ export async function getItem(
 export async function getItemFulltext(
   apiKey: string,
   libraryId: string,
-  itemKey: string
+  itemKey: string,
+  libraryType: LibraryType = "user"
 ) {
-  const zot = zotClient(apiKey, libraryId);
-  try {
-    // First check if this item has fulltext directly
+  const libraryPrefix = libraryType === "group" ? "groups" : "users";
+
+  /**
+   * Fetch fulltext content directly from the Zotero API.
+   * Returns { content, indexedPages?, totalPages?, indexedChars?, totalChars? } on success,
+   * or null if not indexed (404) or on error.
+   */
+  async function fetchFulltext(key: string): Promise<{
+    content: string;
+    indexedPages?: number;
+    totalPages?: number;
+    indexedChars?: number;
+    totalChars?: number;
+  } | null> {
     try {
-      const ftResp = await zot.items(itemKey).fulltext().get();
-      const ftData = ftResp.getData?.() || ftResp.raw;
+      const url = `https://api.zotero.org/${libraryPrefix}/${libraryId}/items/${key}/fulltext`;
+      console.log(`[get_item_fulltext] Fetching: ${url}`);
+
+      const resp = await fetch(url, {
+        headers: {
+          "Zotero-API-Key": apiKey,
+          "Zotero-API-Version": "3",
+        },
+        signal: AbortSignal.timeout(30000),
+      });
+
+      console.log(`[get_item_fulltext] Response status: ${resp.status} for ${key}`);
+
+      if (resp.status === 404) {
+        // No fulltext indexed for this item
+        return null;
+      }
+
+      if (!resp.ok) {
+        console.log(`[get_item_fulltext] Error response: ${resp.status} ${resp.statusText}`);
+        return null;
+      }
+
+      const data = await resp.json() as {
+        content: string;
+        indexedPages?: number;
+        totalPages?: number;
+        indexedChars?: number;
+        totalChars?: number;
+      };
+      console.log(`[get_item_fulltext] Got fulltext for ${key}: ${data.content?.length || 0} chars`);
+      return data;
+    } catch (err: any) {
+      console.log(`[get_item_fulltext] Fetch error for ${key}: ${err.message}`);
+      return null;
+    }
+  }
+
+  try {
+    // First, get the item to understand what we're dealing with
+    const zot = zotClient(apiKey, libraryId, libraryType);
+    const itemResp = await zot.items(itemKey).get();
+    const itemData = itemResp.raw?.data || itemResp.raw;
+    const itemType = itemData?.itemType;
+
+    console.log(`[get_item_fulltext] Item ${itemKey} is type: ${itemType}`);
+
+    // If this is already an attachment, try to get its fulltext directly
+    if (itemType === "attachment") {
+      const contentType = itemData?.contentType || "";
+      const filename = itemData?.filename || itemData?.title || "unknown";
+
+      const ftData = await fetchFulltext(itemKey);
       if (ftData?.content) {
         return {
           item_key: itemKey,
           content: ftData.content,
+          indexedPages: ftData.indexedPages,
+          totalPages: ftData.totalPages,
+          indexedChars: ftData.indexedChars,
+          totalChars: ftData.totalChars,
           source: "fulltext_api",
         };
       }
-    } catch {
-      // No direct fulltext — try children
+
+      // No fulltext available for this attachment
+      return {
+        item_key: itemKey,
+        content: null,
+        contentType,
+        filename,
+        message: contentType.includes("pdf")
+          ? "PDF has not been indexed by Zotero. Full-text indexing happens in Zotero desktop and must sync to the cloud. " +
+            "Try: 1) Open Zotero desktop, 2) Right-click the PDF → 'Reindex Item', 3) Sync your library."
+          : `Attachment type '${contentType}' does not support full-text extraction.`,
+      };
     }
 
-    // Look for child attachments with fulltext
+    // This is a parent item — look for child attachments with fulltext
     const childrenResp = await zot.items(itemKey).children().get();
-    const attachments = (childrenResp.raw || []).filter(
+    const children = childrenResp.raw || [];
+
+    const attachments = children.filter(
       (c: any) => c.data?.itemType === "attachment" && c.data?.contentType
     );
 
-    for (const att of attachments) {
-      try {
-        const ftResp = await zot.items(att.key).fulltext().get();
-        const ftData = ftResp.getData?.() || ftResp.raw;
-        if (ftData?.content) {
-          return {
-            item_key: itemKey,
-            attachment_key: att.key,
-            content: ftData.content,
-            source: "child_attachment_fulltext",
-          };
-        }
-      } catch {
-        continue;
+    console.log(`[get_item_fulltext] Found ${attachments.length} attachments for ${itemKey}`);
+
+    if (attachments.length === 0) {
+      return {
+        item_key: itemKey,
+        content: null,
+        message: "This item has no attachments. Full-text is only available for items with PDF or text attachments.",
+      };
+    }
+
+    // Try each attachment, prioritizing PDFs
+    const pdfAttachments = attachments.filter((a: any) =>
+      a.data?.contentType?.includes("pdf")
+    );
+    const otherAttachments = attachments.filter((a: any) =>
+      !a.data?.contentType?.includes("pdf")
+    );
+    const orderedAttachments = [...pdfAttachments, ...otherAttachments];
+
+    const attemptedKeys: string[] = [];
+
+    for (const att of orderedAttachments) {
+      attemptedKeys.push(att.key);
+      const ftData = await fetchFulltext(att.key);
+
+      if (ftData?.content) {
+        return {
+          item_key: itemKey,
+          attachment_key: att.key,
+          attachment_filename: att.data?.filename || att.data?.title,
+          content: ftData.content,
+          indexedPages: ftData.indexedPages,
+          totalPages: ftData.totalPages,
+          indexedChars: ftData.indexedChars,
+          totalChars: ftData.totalChars,
+          source: "child_attachment_fulltext",
+        };
       }
     }
+
+    // No fulltext found in any attachment
+    const attachmentSummary = attachments.map((a: any) => ({
+      key: a.key,
+      filename: a.data?.filename || a.data?.title,
+      contentType: a.data?.contentType,
+    }));
 
     return {
       item_key: itemKey,
       content: null,
-      message: "No full-text content available for this item.",
+      attachments_checked: attachmentSummary,
+      message:
+        "No full-text content available. PDFs must be indexed by Zotero desktop before full-text is accessible via the API. " +
+        "Try: 1) Open Zotero desktop, 2) Right-click the item → 'Reindex Item', 3) Sync your library, then try again.",
     };
   } catch (err: any) {
-    return { error: err.message };
+    console.log(`[get_item_fulltext] Error: ${err.message}\n${err.stack}`);
+    return { error: `Failed to get fulltext: ${err.message}` };
   }
 }
 
@@ -778,9 +958,10 @@ export async function getCollectionItems(
     direction = "desc",
     limit = 25,
     offset = 0,
-  }: { sort?: string; direction?: string; limit?: number; offset?: number }
+  }: { sort?: string; direction?: string; limit?: number; offset?: number },
+  libraryType: LibraryType = "user"
 ) {
-  const zot = zotClient(apiKey, libraryId);
+  const zot = zotClient(apiKey, libraryId, libraryType);
   try {
     const response = await zot
       .collections(collectionId)
@@ -813,9 +994,10 @@ export async function getCollectionItems(
 export async function listTags(
   apiKey: string,
   libraryId: string,
-  { limit = 100, offset = 0 }: { limit?: number; offset?: number }
+  { limit = 100, offset = 0 }: { limit?: number; offset?: number },
+  libraryType: LibraryType = "user"
 ) {
-  const zot = zotClient(apiKey, libraryId);
+  const zot = zotClient(apiKey, libraryId, libraryType);
   try {
     const response = await zot.tags().get({ limit, start: offset });
     const tags = (response.raw || []).map((t: any) => ({
@@ -831,9 +1013,10 @@ export async function listTags(
 export async function getRecentItems(
   apiKey: string,
   libraryId: string,
-  { limit = 10, sort = "dateAdded" }: { limit?: number; sort?: string }
+  { limit = 10, sort = "dateAdded" }: { limit?: number; sort?: string },
+  libraryType: LibraryType = "user"
 ) {
-  const zot = zotClient(apiKey, libraryId);
+  const zot = zotClient(apiKey, libraryId, libraryType);
   try {
     const response = await zot
       .items()
@@ -860,9 +1043,10 @@ export async function createNote(
   libraryId: string,
   parentItemKey: string,
   content: string,
-  tags: string[] = []
+  tags: string[] = [],
+  libraryType: LibraryType = "user"
 ) {
-  const zot = zotClient(apiKey, libraryId);
+  const zot = zotClient(apiKey, libraryId, libraryType);
   try {
     const template = await getItemTemplate("note");
     template.parentItem = parentItemKey;
@@ -893,9 +1077,10 @@ export async function createNote(
 export async function getAttachmentContent(
   apiKey: string,
   libraryId: string,
-  itemKey: string
+  itemKey: string,
+  libraryType: LibraryType = "user"
 ) {
-  const zot = zotClient(apiKey, libraryId);
+  const zot = zotClient(apiKey, libraryId, libraryType);
   try {
     // First get the attachment metadata to know what we're dealing with
     const itemResp = await zot.items(itemKey).get();
@@ -911,8 +1096,9 @@ export async function getAttachmentContent(
     const filename = data.filename || data.title || "unknown";
 
     // Download the file content
+    const libraryPrefix = libraryType === "group" ? "groups" : "users";
     const fileResp = await fetch(
-      `https://api.zotero.org/users/${libraryId}/items/${itemKey}/file`,
+      `https://api.zotero.org/${libraryPrefix}/${libraryId}/items/${itemKey}/file`,
       {
         headers: { "Zotero-API-Key": apiKey },
         signal: AbortSignal.timeout(60000),
@@ -966,16 +1152,17 @@ export async function getAttachmentContent(
 
 export async function getLibraryStats(
   apiKey: string,
-  libraryId: string
+  libraryId: string,
+  libraryType: LibraryType = "user"
 ) {
-  const zot = zotClient(apiKey, libraryId);
+  const zot = zotClient(apiKey, libraryId, libraryType);
   try {
     // Run three queries in parallel for efficiency
     const [itemsResp, collectionsResult, tagsResult] = await Promise.all([
       // Get total item count with limit=0 (just headers)
       zot.items().top().get({ limit: 1, sort: "dateModified", direction: "desc" }),
-      listCollections(apiKey, libraryId),
-      listTags(apiKey, libraryId, { limit: 25, offset: 0 }),
+      listCollections(apiKey, libraryId, libraryType),
+      listTags(apiKey, libraryId, { limit: 25, offset: 0 }, libraryType),
     ]);
 
     const totalItems = parseInt(
@@ -1034,9 +1221,10 @@ export async function updateItem(
   apiKey: string,
   libraryId: string,
   itemKey: string,
-  changes: UpdateChanges
+  changes: UpdateChanges,
+  libraryType: LibraryType = "user"
 ) {
-  const zot = zotClient(apiKey, libraryId);
+  const zot = zotClient(apiKey, libraryId, libraryType);
   try {
     const itemResp = await zot.items(itemKey).get();
     const raw = itemResp.raw;

@@ -1,7 +1,6 @@
 {
   "name": "deploy-zotero-assistant-mcp",
   "version": "0.3.0",
-  "private": true,
   "description": "Deploy Zotero MCP server to Cloudflare Workers",
   "bin": {
     "deploy-zotero-assistant-mcp": "bin/cli.ts"
@@ -24,5 +23,12 @@
     "tsx": "^4.0.0",
     "typescript": "^5.7.0",
     "wrangler": "^4.0.0"
-  }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/upascal/zotero-assistant-mcp-remote.git",
+    "directory": "packages/deploy"
+  },
+  "keywords": ["mcp", "zotero", "cloudflare-workers", "deploy"]
 }
