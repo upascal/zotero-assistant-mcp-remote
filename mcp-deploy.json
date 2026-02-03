@@ -28,16 +28,8 @@
       "helpText": "Your Zotero user library ID (numeric ID from your account)",
       "helpUrl": "https://www.zotero.org/settings/keys",
       "placeholder": "12345678"
-    },
-    {
-      "key": "BEARER_TOKEN",
-      "label": "Bearer Token",
-      "type": "password",
-      "required": true,
-      "helpText": "Authentication token for MCP clients connecting to this server",
-      "placeholder": "sk-..."
     }
   ],
   "config": [],
-  "autoSecrets": []
+  "autoSecrets": ["BEARER_TOKEN"]
 }
