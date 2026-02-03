@@ -8,6 +8,8 @@
     "dev": "npm run dev --workspace=packages/deploy",
     "deploy": "npm run deploy --workspace=packages/deploy",
     "setup": "npm run setup --workspace=packages/deploy",
-    "test": "npm run test --workspace=packages/mcp"
+    "test": "npm run test --workspace=packages/mcp",
+    "build:worker": "cd packages/deploy && npm run build",
+    "release": "npm run build:worker && cp packages/deploy/dist/worker.mjs ./worker.mjs && cp mcp-deploy.json ./mcp-deploy.json"
   }
 }
